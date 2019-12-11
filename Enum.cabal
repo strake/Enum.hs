@@ -1,5 +1,5 @@
 name:                Enum
-version:             0.1.0.0
+version:             0.2.0.0
 synopsis:            Non-crashing `Enum` operations
 -- description:
 license:             BSD3
