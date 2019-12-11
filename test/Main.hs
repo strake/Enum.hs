@@ -13,7 +13,7 @@ import Test.SmallCheck
 import Test.Tasty
 import Test.Tasty.HUnit
 
-import Util.Enum
+import Enum
 
 main :: IO ()
 main = defaultMain $ testGroup "" $ asum

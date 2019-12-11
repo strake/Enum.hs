@@ -1,4 +1,4 @@
-module Util.Enum (toEnumMay, fromEnum, predMay, succMay, compareEnum) where
+module Enum (toEnumMay, fromEnum, predMay, succMay, compareEnum) where
 
 import Prelude hiding (filter, fromEnum, head, tail)
 import qualified Prelude
