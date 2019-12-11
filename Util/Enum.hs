@@ -1,28 +1,41 @@
-module Util.Enum (toEnumMay, fromEnum, predMay, succMay) where
+module Util.Enum (toEnumMay, fromEnum, predMay, succMay, compareEnum) where
 
 import Prelude hiding (filter, fromEnum, head, tail)
 import qualified Prelude
-import Control.Applicative
+
 import Control.Monad
 import Control.Exception
-import Data.Bool (bool)
-import Data.Maybe (fromMaybe)
-import Data.Semigroup (Semigroup (..), stimes)
+import Data.List (genericLength)
 import System.IO.Unsafe
 
 toEnumMay :: Enum a => Integer -> Maybe a
-toEnumMay n = opMay (toEnum . fromIntegral) n <|> toEnumSafe n
+toEnumMay n
+  | n < minInt, Just lower <- lowerEdgeMay, Just lower' <- predMay lower = [lower, lower'..] !!? (minInt - n)
+  | n > maxInt, Just upper <- upperEdgeMay = [upper..] !!? (n - maxInt)
+  | otherwise = (opMay toEnum <=< toIntMay) n
 
-toEnumSafe :: Enum a => Integer -> Maybe a
-toEnumSafe n = stimes (abs n) (EndoM $ bool succMay predMay $ n < 0) `endoM` toEnum 0
+toIntMay :: Integer -> Maybe Int
+toIntMay n = n' <$ guard (n == toInteger n') where n' = fromIntegral n
 
 fromEnum :: Enum a => a -> Integer
-fromEnum = fromMaybe <$> fromEnumSafe <*> opMay (fromIntegral . Prelude.fromEnum)
+fromEnum a
+  | Just edge <- lowerEdgeMay, l <- genericLength [a..edge] - 1, l >= 0 = minInt - l
+  | Just edge <- upperEdgeMay, l <- genericLength [edge..a] - 1, l >= 0 = maxInt + l
+  | otherwise = (toInteger . Prelude.fromEnum) a
 
-fromEnumSafe :: Enum a => a -> Integer
-fromEnumSafe a = head $ f `mapMaybe` let go n = n :. negate n :. go (n+1) in 0 :. go 1
-  where f n = n <$ (guard . (== 0) =<< opMay Prelude.fromEnum =<<
-                    stimes (abs n) (EndoM $ bool succMay predMay $ n < 0) `endoM` a)
+minInt, maxInt :: Integer
+minInt = toEnum minBound
+maxInt = toEnum maxBound
+
+lowerEdgeMay, upperEdgeMay :: Enum a => Maybe a
+lowerEdgeMay = opMay Prelude.toEnum minBound
+upperEdgeMay = opMay Prelude.toEnum maxBound
+
+compareEnum :: Enum a => a -> a -> Ordering
+compareEnum a b
+  | _:_ <- enumFromTo a b = LT
+  | _:_ <- enumFromTo b a = GT
+  | otherwise = EQ
 
 predMay, succMay :: Enum a => a -> Maybe a
 predMay = opMay pred
@@ -43,22 +56,7 @@ handlers a = [Handler $ \ (_ :: ArithException) -> pure a,
               Handler $ \ (_ :: RecUpdError) -> pure a,
               Handler $ \ (_ :: ErrorCall) -> pure a]
 
-newtype EndoM m a = EndoM { endoM :: a -> m a }
-instance Monad m => Semigroup (EndoM m a) where EndoM f <> EndoM g = EndoM (f >=> g)
-instance Monad m => Monoid (EndoM m a) where
-    mappend = (<>)
-    mempty = EndoM pure
-
-infixr 5 :.
-data Stream a = (:.) { head :: a, tail :: Stream a }
-  deriving (Functor, Foldable)
-
-instance Applicative Stream where
-    pure a = a :. pure a
-    f :. fs <*> x :. xs = f x :. (fs <*> xs)
-
-instance Monad Stream where
-    xs >>= f = join (f <$> xs) where join (a :. as) = head a :. join (tail <$> as)
-
-mapMaybe :: (a -> Maybe b) -> Stream a -> Stream b
-mapMaybe f (a :. as) = maybe id (:.) (f a) $ mapMaybe f as
+(!!?) :: [a] -> Integer -> Maybe a
+[] !!? _ = Nothing
+(x:_) !!? 0 = Just x
+(_:xs) !!? n = xs !!? (n-1)
